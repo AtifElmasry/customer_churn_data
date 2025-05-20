@@ -1,4 +1,3 @@
-
 # Customer Churn Analysis Script
 
 import pandas as pd
@@ -40,21 +39,21 @@ print(classification_report(y_test, y_pred))
 print("Confusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 
-# Plotting and saving to full paths
+# Plotting
 plt.figure(figsize=(10, 6))
 sns.countplot(x='Churn', data=data)
 plt.title('Churn Count')
-plt.savefig('C:/Users/atifa/OneDrive/Documents/GitHub/customer_churn_data/plots/churn_count.png')
+plt.savefig('plots/churn_count.png')
 plt.close()
 
 plt.figure(figsize=(10, 6))
 sns.boxplot(x='Churn', y='MonthlyCharges', data=data)
 plt.title('Monthly Charges by Churn')
-plt.savefig('C:/Users/atifa/OneDrive/Documents/GitHub/customer_churn_data/plots/monthly_charges_by_churn.png')
+plt.savefig('plots/monthly_charges_by_churn.png')
 plt.close()
 
 plt.figure(figsize=(10, 6))
 sns.histplot(data['TenureMonths'], kde=True, bins=30)
 plt.title('Tenure Distribution')
-plt.savefig('C:/Users/atifa/OneDrive/Documents/GitHub/customer_churn_data/plots/tenure_distribution.png')
+plt.savefig('plots/tenure_distribution.png')
 plt.close()
