@@ -1,92 +1,150 @@
-"""Analyze synthetic customer churn data and generate model diagnostics."""
+"""Model churn risk using the UCI Iranian telecom dataset."""
 
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
+from sklearn.compose import make_column_transformer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import make_scorer, average_precision_score
+from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from ucimlrepo import fetch_ucirepo
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "customer_churn_data.csv"
-DEFAULT_PLOTS_DIR = PROJECT_ROOT / "plots"
+PLOTS_DIR = PROJECT_ROOT / "plots"
 
 
-def load_data(data_path=DEFAULT_DATA_PATH):
-    """Load the customer churn dataset from a CSV file."""
-    return pd.read_csv(data_path)
+def to_snake_case(value):
+    """Convert a column label to lowercase snake case."""
+    value = re.sub(r"[^a-zA-Z0-9]+", "_", str(value))
+    return value.strip("_").lower()
+
+
+def load_uci_data():
+    """Retrieve UCI dataset 563 and return one analysis-ready table."""
+    dataset = fetch_ucirepo(id=563)
+    features = dataset.data.features.copy()
+    target = dataset.data.targets.copy()
+    data = pd.concat([features, target], axis=1)
+    data.columns = [to_snake_case(column) for column in data.columns]
+    return data
 
 
 def prepare_features(data):
-    """Convert categorical fields and return model features and target."""
+    """Validate the churn target and separate features from labels."""
     prepared = data.copy()
-    prepared["Churn"] = prepared["Churn"].map({"Yes": 1, "No": 0})
-    prepared["Gender"] = prepared["Gender"].map({"Male": 1, "Female": 0})
-    prepared = pd.get_dummies(
-        prepared,
-        columns=["ContractType", "InternetService", "PaymentMethod"],
-        drop_first=True,
+    prepared.columns = [to_snake_case(column) for column in prepared.columns]
+
+    if "churn" not in prepared:
+        raise ValueError("Expected a 'churn' target column.")
+
+    target = pd.to_numeric(prepared.pop("churn"), errors="raise").astype(int)
+    identifiers = [
+        column for column in prepared.columns
+        if column in {"customer_id", "anonymous_customer_id"}
+    ]
+    features = prepared.drop(columns=identifiers, errors="ignore")
+    return features, target
+
+
+def build_models():
+    """Return interpretable and nonlinear candidate models."""
+    logistic = make_pipeline(
+        SimpleImputer(strategy="median"),
+        StandardScaler(),
+        LogisticRegression(max_iter=2_000, class_weight="balanced"),
     )
+    forest = make_pipeline(
+        SimpleImputer(strategy="median"),
+        RandomForestClassifier(
+            n_estimators=500,
+            min_samples_leaf=5,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
+        ),
+    )
+    return {"logistic_regression": logistic, "random_forest": forest}
 
-    features = prepared.drop(["CustomerID", "Churn"], axis=1)
-    target = prepared["Churn"]
-    return prepared, features, target
 
-
-def train_model(features, target):
-    """Train a Random Forest model and return the model and test data."""
-    features_train, features_test, target_train, target_test = train_test_split(
-        features,
-        target,
-        test_size=0.2,
+def evaluate_models(features, target, folds=5):
+    """Evaluate candidate models with stratified cross-validation."""
+    del make_column_transformer
+    cross_validation = StratifiedKFold(
+        n_splits=folds,
+        shuffle=True,
         random_state=42,
     )
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(features_train, target_train)
-    return model, features_test, target_test
+    scoring = {
+        "roc_auc": "roc_auc",
+        "pr_auc": make_scorer(
+            average_precision_score,
+            response_method="predict_proba",
+        ),
+        "f1": "f1",
+        "precision": "precision",
+        "recall": "recall",
+    }
+    rows = []
+
+    for name, model in build_models().items():
+        scores = cross_validate(
+            model,
+            features,
+            target,
+            cv=cross_validation,
+            scoring=scoring,
+            n_jobs=-1,
+        )
+        row = {"model": name}
+        for metric in scoring:
+            row[metric] = scores[f"test_{metric}"].mean()
+            row[f"{metric}_std"] = scores[f"test_{metric}"].std()
+        rows.append(row)
+
+    return pd.DataFrame(rows).sort_values("pr_auc", ascending=False)
 
 
-def save_plots(data, plots_dir=DEFAULT_PLOTS_DIR):
-    """Create and save the project's exploratory visualizations."""
-    plots_dir.mkdir(parents=True, exist_ok=True)
+def save_feature_importance(features, target, output_dir=PLOTS_DIR):
+    """Fit the Random Forest and save its feature-importance chart."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    forest_pipeline = build_models()["random_forest"]
+    forest_pipeline.fit(features, target)
+    forest = forest_pipeline.named_steps["randomforestclassifier"]
 
-    plt.figure(figsize=(10, 6))
-    sns.countplot(x="Churn", data=data)
-    plt.title("Churn Count")
-    plt.savefig(plots_dir / "churn_count.png")
-    plt.close()
+    importance = pd.Series(
+        forest.feature_importances_,
+        index=features.columns,
+    ).sort_values(ascending=False)
 
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(x="Churn", y="MonthlyCharges", data=data)
-    plt.title("Monthly Charges by Churn")
-    plt.savefig(plots_dir / "monthly_charges_by_churn.png")
-    plt.close()
-
-    plt.figure(figsize=(10, 6))
-    sns.histplot(data["TenureMonths"], kde=True, bins=30)
-    plt.title("Tenure Distribution")
-    plt.savefig(plots_dir / "tenure_distribution.png")
-    plt.close()
+    top_features = importance.head(10).sort_values()
+    axis = top_features.plot.barh(figsize=(9, 6), color="#3264a8")
+    axis.set_title("Top churn-risk features")
+    axis.set_xlabel("Random Forest feature importance")
+    axis.figure.tight_layout()
+    axis.figure.savefig(output_dir / "feature_importance.png", dpi=160)
+    plt.close(axis.figure)
+    return importance
 
 
 def main():
-    """Run the complete customer churn analysis."""
-    data = load_data()
-    print("Dataset Shape:", data.shape)
-    print(data.head())
+    """Run data retrieval, model comparison and interpretation output."""
+    data = load_uci_data()
+    features, target = prepare_features(data)
+    results = evaluate_models(features, target)
+    importance = save_feature_importance(features, target)
 
-    prepared, features, target = prepare_features(data)
-    model, features_test, target_test = train_model(features, target)
-    predictions = model.predict(features_test)
-
-    print("Classification Report:")
-    print(classification_report(target_test, predictions, zero_division=0))
-    print("Confusion Matrix:")
-    print(confusion_matrix(target_test, predictions))
-
-    save_plots(prepared)
+    print(f"Customers: {len(data):,}")
+    print(f"Churn rate: {target.mean():.1%}")
+    print("\nCross-validation results:")
+    print(results.round(3).to_string(index=False))
+    print("\nTop predictive features:")
+    print(importance.head(10).round(4).to_string())
 
 
 if __name__ == "__main__":

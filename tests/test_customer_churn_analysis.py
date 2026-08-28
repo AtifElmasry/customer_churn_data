@@ -1,29 +1,42 @@
-"""Tests for the customer churn analysis workflow."""
+"""Tests for churn-data preparation and model evaluation."""
 
 import pandas as pd
 
-from scripts.customer_churn_analysis import prepare_features
+from scripts.customer_churn_analysis import evaluate_models, prepare_features
 
 
-def test_prepare_features_encodes_target_and_removes_identifiers():
-    """Feature preparation should produce numeric model inputs."""
+def test_prepare_features_separates_target_and_identifier():
+    """Preparation should remove the target and customer identifier."""
     data = pd.DataFrame(
         {
-            "CustomerID": ["C001", "C002"],
-            "Churn": ["Yes", "No"],
-            "Gender": ["Female", "Male"],
-            "ContractType": ["Monthly", "Annual"],
-            "InternetService": ["Fiber", "DSL"],
-            "PaymentMethod": ["Card", "Bank transfer"],
-            "MonthlyCharges": [80.0, 45.0],
-            "TenureMonths": [4, 24],
+            "Customer ID": range(12),
+            "Call Failure": range(12),
+            "Complains": [0, 1] * 6,
+            "Subscription Length": range(20, 32),
+            "Churn": [0, 1] * 6,
         }
     )
 
-    prepared, features, target = prepare_features(data)
+    features, target = prepare_features(data)
 
-    assert target.tolist() == [1, 0]
-    assert "CustomerID" not in features.columns
-    assert "Churn" not in features.columns
-    assert prepared["Gender"].tolist() == [0, 1]
-    assert not features.select_dtypes(include="object").columns.tolist()
+    assert "churn" not in features
+    assert "customer_id" not in features
+    assert target.tolist() == [0, 1] * 6
+
+
+def test_model_evaluation_returns_decision_metrics():
+    """Evaluation should compare both models using churn-relevant metrics."""
+    rows = 40
+    features = pd.DataFrame(
+        {
+            "complains": [0, 1] * (rows // 2),
+            "seconds_of_use": range(rows),
+            "subscription_length": range(10, 10 + rows),
+        }
+    )
+    target = pd.Series([0, 1] * (rows // 2))
+
+    results = evaluate_models(features, target, folds=2)
+
+    assert set(results["model"]) == {"logistic_regression", "random_forest"}
+    assert {"roc_auc", "pr_auc", "f1", "precision", "recall"}.issubset(results.columns)
