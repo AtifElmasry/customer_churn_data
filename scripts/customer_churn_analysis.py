@@ -5,7 +5,6 @@ import re
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.compose import make_column_transformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import make_scorer, average_precision_score
@@ -74,7 +73,6 @@ def build_models():
 
 def evaluate_models(features, target, folds=5):
     """Evaluate candidate models with stratified cross-validation."""
-    del make_column_transformer
     cross_validation = StratifiedKFold(
         n_splits=folds,
         shuffle=True,
