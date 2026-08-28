@@ -1,89 +1,65 @@
+# Customer Churn Analysis
 
-# 📉 Customer Churn Analysis (Python)
+A Python workflow for exploring customer churn in a telecom-style business, combining exploratory analysis, feature preparation and a Random Forest classification model.
 
-This project demonstrates a full workflow for analyzing customer churn in a telecom-like environment using a synthetic dataset. It includes data preparation, visualization, machine learning, and result interpretation — all in Python.
+> The repository contains 100 synthetic customer records. It demonstrates the analytical process; the model is not suitable for production use at this sample size.
 
----
+## Business question
 
-## 📂 Project Structure
+Which customer characteristics are associated with churn, and how could a retention team use those signals to prioritize further investigation?
 
+## Workflow
+
+1. Cleaned customer and contract attributes.
+2. Explored churn by tenure, monthly charges and contract type.
+3. Prepared features for classification.
+4. Trained a Random Forest model.
+5. Interpreted patterns and generated visual outputs.
+
+## Repository structure
+
+```text
+data/       Synthetic customer dataset
+plots/      Generated visualizations
+scripts/    Analysis script
+README.md   Project documentation
 ```
-customer-churn-analysis-python/
-├── data/
-│   └── customer_churn_data.csv
-├── plots/
-│   ├── churn_count.png
-│   ├── monthly_charges_by_churn.png
-│   └── tenure_distribution.png
-├── scripts
-│   └── customer_churn_analysis.py
-└── README.md
-```
 
----
+## Visualizations
 
-## 🧠 Key Highlights
+### Churn distribution
 
-- 📊 Exploratory Data Analysis (EDA) with Seaborn
-- 🤖 Random Forest Classifier for churn prediction
-- 🧹 Data cleaning & feature engineering
-- 📈 Insights on Monthly Charges, Tenure, and Contract Type
+![Churn distribution](plots/churn_count.png)
 
----
+### Monthly charges by churn status
 
-## 💾 How to Use
+![Monthly charges by churn status](plots/monthly_charges_by_churn.png)
 
-1. Clone the repository:
+### Tenure distribution
+
+![Tenure distribution](plots/tenure_distribution.png)
+
+## Reproduce the analysis
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/customer-churn-analysis-python.git
-cd customer-churn-analysis-python
-```
-
-2. Install dependencies:
-
-```bash
+git clone https://github.com/AtifElmasry/customer_churn_data.git
+cd customer_churn_data
 pip install pandas matplotlib seaborn scikit-learn
+python scripts/customer_churn_analysis.py
 ```
 
-3. Run the analysis:
+## Limitations and next steps
 
-```bash
-python customer_churn_analysis.py
-```
+- Increase the sample size before relying on model performance.
+- Use stratified cross-validation and report precision, recall, F1 and ROC–AUC.
+- Compare the Random Forest with an interpretable logistic-regression baseline.
+- Check class balance and tune the decision threshold around retention costs.
+- Validate results on a separate time period or holdout population.
 
-4. Check the `plots/` folder for visual output.
+## Tools
 
----
+Python, pandas, Matplotlib, Seaborn and scikit-learn
 
-## 🖼️ Sample Visualizations
+## Author
 
-### Churn Count  
-![Churn Count](plots/churn_count.png)
-
-### Monthly Charges by Churn  
-![Monthly Charges](plots/monthly_charges_by_churn.png)
-
-### Tenure Distribution  
-![Tenure](plots/tenure_distribution.png)
-
----
-
-## 📌 Dataset Description
-
-- 100 synthetic customer records
-- Features include: `Gender`, `SeniorCitizen`, `MonthlyCharges`, `Tenure`, `ContractType`, etc.
-- Binary target: `Churn` (Yes/No)
-
----
-
-## 👨‍💻 Author
-
-**Atifa Elmasry**  
-Aspiring Data Analyst | Python | Data Visualization | Machine Learning
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
+[Atif Elmasry](https://github.com/AtifElmasry) · [LinkedIn](https://www.linkedin.com/in/tioatifelmasry/)
